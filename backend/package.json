@@ -1,0 +1,33 @@
+{
+  "name": "transgate-ai-agent-backend",
+  "version": "0.1.0",
+  "author": "zkPass Tech",
+  "keywords": ["zkTLS", "zero-knowledge-proof", "AI-Agent", "zkPass", "TransGate"],
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node dist/server.js",
+    "build": "tsc",
+    "seed": "tsx src/db/seed.ts"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.1.36",
+    "@langchain/langgraph": "^1.2.5",
+    "@langchain/openai": "^1.3.1",
+    "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.6",
+    "express": "~4.21.0",
+    "morgan": "~1.10.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/morgan": "^1.9.10",
+    "@types/node": "^25.5.0",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2"
+  }
+}

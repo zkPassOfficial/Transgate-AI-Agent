@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TransGate AI Agent — Extension Test</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; }
+  h1 { padding: 16px 20px; font-size: 18px; background: #16213e; border-bottom: 1px solid #0f3460; }
+  .container { flex: 1; display: flex; flex-direction: column; padding: 16px; max-width: 720px; width: 100%; margin: 0 auto; overflow: hidden; }
+  .log { flex: 1; overflow-y: auto; font-family: 'SF Mono', Monaco, Consolas, monospace; font-size: 13px; line-height: 1.6; padding: 12px; background: #0d1117; border-radius: 8px; border: 1px solid #30363d; }
+  .log-entry { margin-bottom: 8px; padding: 6px 8px; border-radius: 4px; }
+  .log-entry.send { background: #1c2333; color: #999; }
+  .log-entry.response { background: #0d2818; color: #7ee787; }
+  .log-entry.progress { background: #1c1c33; color: #d2a8ff; }
+  .log-entry.error { background: #2d1117; color: #f85149; }
+  .log-entry .label { font-weight: 600; font-size: 11px; text-transform: uppercase; margin-bottom: 2px; }
+  .log-entry pre { white-space: pre-wrap; word-break: break-all; }
+  .controls { padding-top: 12px; }
+  .row { display: flex; gap: 8px; margin-bottom: 8px; }
+  input, select { background: #0d1117; border: 1px solid #30363d; color: #e0e0e0; padding: 8px 12px; border-radius: 6px; font-size: 14px; }
+  input { flex: 1; }
+  input:focus { outline: none; border-color: #58a6ff; }
+  button { background: #238636; color: #fff; border: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer; white-space: nowrap; }
+  button:hover { background: #2ea043; }
+  button.secondary { background: #30363d; }
+  button.secondary:hover { background: #484f58; }
+  button.danger { background: #da3633; }
+  button.danger:hover { background: #f85149; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; }
+  .tabs button { background: #30363d; font-size: 13px; padding: 6px 14px; }
+  .tabs button.active { background: #238636; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .status { font-size: 12px; color: #888; padding: 4px 0; }
+</style>
+</head>
+<body>
+<h1>TransGate AI Agent — Extension Test</h1>
+<div class="container">
+  <div class="log" id="log"></div>
+  <div class="controls">
+    <div class="tabs">
+      <button class="active" onclick="switchTab('chat')">Chat</button>
+      <button onclick="switchTab('verify')">Verify Schema</button>
+      <button class="secondary" onclick="sendMsg('TRANSGATE_NEW_CONVERSATION')">New Conversation</button>
+      <button class="danger" onclick="sendMsg('TRANSGATE_STOP_VERIFICATION')">Stop</button>
+      <button class="secondary" onclick="clearLog()">Clear</button>
+    </div>
+    <div id="tab-chat" class="panel active">
+      <div class="row">
+        <input type="text" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter'&&!event.isComposing)sendChat()">
+        <button onclick="sendChat()">Send</button>
+      </div>
+      <div class="row">
+        <input type="text" id="convId" placeholder="conversationId (auto)" readonly style="font-size:12px; color:#666;">
+      </div>
+    </div>
+    <div id="tab-verify" class="panel">
+      <div class="row">
+        <input type="text" id="schemaInput" placeholder="zkPass Schema ID" value="925af1cca5bc4537b372cdfdc00b2a3b">
+        <button onclick="sendVerify()">Verify</button>
+      </div>
+    </div>
+    <div class="status" id="status">Waiting for extension...</div>
+  </div>
+</div>
+
+<script>
+const EXT = 'transgate-ai-agent';
+let convId = '';
+
+function $(id) { return document.getElementById(id); }
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function appendLog(type, label, content) {
+  const log = $('log');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry ' + type;
+  const data = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+  entry.innerHTML = `<div class="label">${label}</div><pre>${escHtml(data)}</pre>`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+
+function clearLog() { $('log').innerHTML = ''; }
+
+function switchTab(name) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  event.target.classList.add('active');
+  $('tab-' + name).classList.add('active');
+}
+
+// Listen for extension messages
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.source !== EXT) return;
+
+  const type = data.type || '';
+  $('status').textContent = type;
+
+  if (type === 'TRANSGATE_RESPONSE') {
+    appendLog('response', 'response', data);
+    if (data.conversationId) {
+      convId = data.conversationId;
+      $('convId').value = convId;
+    }
+  } else if (type === 'TRANSGATE_ERROR') {
+    appendLog('error', 'error', data);
+  } else if (type.includes('CHAT_PROGRESS')) {
+    appendLog('progress', 'chat progress', data);
+  } else if (type.includes('CHAT_RESULT')) {
+    appendLog('response', 'chat result', data);
+    if (data.conversationId) {
+      convId = data.conversationId;
+      $('convId').value = convId;
+    }
+  } else if (type.includes('STATUS_UPDATE')) {
+    appendLog('progress', 'status', data.status || data);
+  } else if (type.includes('PROOF_RESULT')) {
+    appendLog('response', 'proof result', data);
+  } else if (type.includes('VERIFICATION_DONE')) {
+    appendLog(data.error ? 'error' : 'response', 'done', data);
+  } else {
+    appendLog('progress', type, data);
+  }
+});
+
+function sendMsg(type, extra) {
+  const msg = { target: EXT, type, ...extra };
+  appendLog('send', 'send', msg);
+  window.postMessage(msg, '*');
+}
+
+function sendChat() {
+  const text = $('chatInput').value.trim();
+  if (!text) return;
+  $('chatInput').value = '';
+  const extra = { message: text };
+  if (convId) extra.conversationId = convId;
+  sendMsg('TRANSGATE_CHAT', extra);
+}
+
+function sendVerify() {
+  const id = $('schemaInput').value.trim();
+  if (!id) return;
+  sendMsg('TRANSGATE_VERIFY_SCHEMA', { zkpassSchemaId: id });
+}
+
+// Check extension availability
+sendMsg('TRANSGATE_NEW_CONVERSATION');
+</script>
+</body>
+</html>

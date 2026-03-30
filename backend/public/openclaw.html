@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TransGate AI Agent</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f9fafb; height: 100vh; display: flex; flex-direction: column; }
+  #messages { flex: 1; overflow-y: auto; padding: 16px; }
+  .message { padding: 8px 14px; margin-bottom: 8px; border-radius: 8px; font-size: 14px; line-height: 1.5; max-width: 80%; white-space: pre-wrap; word-break: break-word; }
+  .message.user { background: #e5e7eb; color: #111; margin-left: auto; }
+  .message.bot { background: #fff; color: #111; border: 1px solid #e5e7eb; }
+  .message.status { background: #eef2ff; color: #4f46e5; font-size: 13px; }
+  .message.error { background: #fef2f2; color: #dc2626; font-size: 13px; }
+  .message.done { background: #f0fdf4; color: #16a34a; font-size: 13px; }
+  .controls { padding: 12px 16px; border-top: 1px solid #e5e7eb; background: #fff; display: flex; gap: 8px; }
+  #chat-input { flex: 1; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; outline: none; }
+  #chat-input:focus { border-color: #6b7280; }
+  #send-btn { padding: 8px 20px; background: #111; color: #fff; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+  #send-btn:hover { background: #333; }
+</style>
+</head>
+<body>
+<div id="messages"></div>
+<div class="controls">
+  <input type="text" id="chat-input" placeholder="Type a message or /verify <schemaId>" />
+  <button id="send-btn">Send</button>
+</div>
+
+<script>
+const EXT = 'transgate-ai-agent';
+let convId = '';
+
+function addMessage(type, text) {
+  const el = document.createElement('div');
+  el.className = 'message ' + type;
+  el.textContent = text;
+  const container = document.getElementById('messages');
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+}
+
+// Extension message listener
+window.addEventListener('message', (event) => {
+  const data = event.data;
+  if (!data || data.source !== EXT) return;
+
+  const type = data.type || '';
+
+  if (type.includes('CHAT_RESULT')) {
+    addMessage('bot', data.reply || JSON.stringify(data));
+    if (data.conversationId) convId = data.conversationId;
+  } else if (type.includes('STATUS_UPDATE')) {
+    addMessage('status', data.status || '');
+  } else if (type.includes('PROOF_RESULT')) {
+    addMessage('done', 'Proof generated:\n' + (data.result || ''));
+  } else if (type.includes('VERIFICATION_DONE')) {
+    if (data.error) {
+      addMessage('error', data.error);
+    } else {
+      addMessage('done', 'Verification complete');
+    }
+  } else if (type === 'TRANSGATE_RESPONSE') {
+    if (data.conversationId) convId = data.conversationId;
+  } else if (type === 'TRANSGATE_ERROR') {
+    addMessage('error', data.error || 'Extension not available');
+  }
+});
+
+function sendToExtension(type, extra) {
+  window.postMessage({ target: EXT, type, ...extra }, '*');
+}
+
+function handleInput() {
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  // Command parsing
+  if (text === '/stop') {
+    addMessage('user', text);
+    sendToExtension('TRANSGATE_STOP_VERIFICATION');
+    return;
+  }
+  if (text === '/new') {
+    addMessage('user', text);
+    sendToExtension('TRANSGATE_NEW_CONVERSATION');
+    convId = '';
+    return;
+  }
+  if (text.startsWith('/verify ')) {
+    const schemaId = text.slice(8).trim();
+    if (schemaId) {
+      addMessage('user', text);
+      sendToExtension('TRANSGATE_VERIFY_SCHEMA', { zkpassSchemaId: schemaId });
+      return;
+    }
+  }
+
+  // Regular chat
+  addMessage('user', text);
+  const extra = { message: text };
+  if (convId) extra.conversationId = convId;
+  sendToExtension('TRANSGATE_CHAT', extra);
+}
+
+document.getElementById('send-btn').addEventListener('click', handleInput);
+document.getElementById('chat-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.isComposing) handleInput();
+});
+
+// Init conversation
+sendToExtension('TRANSGATE_NEW_CONVERSATION');
+</script>
+</body>
+</html>

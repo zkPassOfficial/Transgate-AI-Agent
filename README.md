@@ -4,7 +4,7 @@
 
 **Prove anything about yourself across the internet — privately and trustlessly.**
 
-An AI-powered Chrome extension that turns natural language into [zkPass](https://zkpass.org) zero-knowledge proofs.
+AI Agent meets zero-knowledge proofs. Autonomously verify anything across the internet — powered by [zkPass](https://zkpass.org)
 
 Just tell the agent what you want to prove. It handles everything — schema matching, browser navigation, login detection, zkTLS data capture, and proof generation.
 

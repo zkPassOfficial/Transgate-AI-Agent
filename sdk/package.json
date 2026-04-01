@@ -1,0 +1,28 @@
+{
+  "name": "@zkpass/transgate-agent-sdk",
+  "version": "0.1.0",
+  "description": "SDK for TransGate AI Agent Chrome extension",
+  "author": "zkPass Tech",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "devDependencies": {
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.3"
+  },
+  "keywords": ["zkTLS", "zero-knowledge-proof", "AI-Agent", "zkPass", "TransGate"]
+}

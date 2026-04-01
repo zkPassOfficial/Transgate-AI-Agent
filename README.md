@@ -14,7 +14,23 @@ Just tell the agent what you want to prove. It handles everything — schema mat
 
 ## Demo
 
-https://github.com/user-attachments/assets/44e3da60-1f25-4f4b-a92b-a2127c201f21
+https://github.com/user-attachments/assets/1c9ebab2-f596-4a09-82f6-40d535a1f194
+
+> **What's shown:** (1) Single schema — *"I want to verify I am a KOL"* → AI matches Twitter follower verification → proof generated. (2) Campaign — *"I want to attend zkPass airdrop"* → AI matches airdrop campaign → two schemas verified sequentially → aggregated results.
+
+## Why TransGate AI Agent
+
+Traditional verification systems require users to manually interpret workflows, understand underlying data structures, and coordinate execution step by step. This model does not scale to a world where autonomous agents, rather than humans, are the primary actors.
+
+TransGate AI Agent introduces an autonomous execution layer — combining intelligent reasoning, resilient orchestration, and a programmable interface — evolving zkPass from a verification tool into a general-purpose, programmable trust infrastructure.
+
+**What's new:**
+
+- **Autonomous Intelligence Layer** — An AI agent capable of multi-step reasoning, contextual understanding, and adaptive execution. Interaction shifts from explicit instruction to intent-driven resolution.
+- **Unified Execution Engine** — A fault-tolerant, composable pipeline that coordinates complex, multi-stage verification processes with deterministic and cryptographically verifiable outcomes.
+- **Composable Orchestration Framework** — Define once, execute anywhere. Complex verification workflows become reusable primitives, seamlessly integrable across environments.
+- **Programmable Interface Layer** — A developer-centric SDK that exposes trust and verification as native, composable building blocks within any application.
+- **Dual Interaction Model** — Designed for both human interaction and system-level integration, enabling seamless coordination between user-driven and programmatic execution.
 
 ## How It Works
 
@@ -28,9 +44,11 @@ Extension navigates to Twitter → Login Detection → Request Interception
 zkTLS → Zero-Knowledge Proof Generation → Result
 ```
 
-**Backend** — Express server with a LangGraph AI agent. Understands natural language, matches it to verification schemas, and allocates zkPass tasks.
+**Backend** — Express server with a LangGraph AI agent. Understands natural language, matches it to verification schemas and campaigns, and allocates zkPass tasks.
 
-**Extension** — Chrome extension (Manifest V3) with a Side Panel chat UI. Handles browser automation, login detection, HTTP request interception, and zkTLS proof generation.
+**Extension** — Chrome extension (Manifest V3) with a Side Panel chat UI. Handles browser automation, login detection, HTTP request interception, batch verification, and zkTLS proof generation.
+
+**SDK** — JavaScript/TypeScript SDK for third-party webpages to trigger verification without building their own extension integration.
 
 ## Quick Start
 
@@ -98,9 +116,38 @@ Click the extension icon to open the Side Panel. Type what you want to verify:
 
 - "Verify my Twitter followers"
 - "Prove I completed Binance KYC"
-- "Check my Binance balance"
+- "I want to participate in the airdrop"
 
-The agent will find the matching schema, ask for confirmation, then run the full verification flow automatically.
+The agent will find the matching schema (or campaign), ask for confirmation, then run the full verification flow automatically.
+
+## SDK Integration
+
+Third-party webpages can integrate via the [TransGate Agent SDK](sdk/):
+
+```js
+import { TransGateAgent } from '@zkpass/transgate-agent-sdk';
+
+const agent = new TransGateAgent();
+
+// Direct verification
+const result = await agent.verify(['zkpass-schema-id-1', 'zkpass-schema-id-2']);
+
+// Campaign verification
+const result = await agent.verifyCampaign(1);
+
+// AI-powered chat
+const res = await agent.chat('verify my twitter followers');
+```
+
+Three modes:
+
+| Mode | Use When |
+|---|---|
+| `verify(schemaIds)` | You know which zkPass schemas to verify |
+| `verifyCampaign(id)` | You want to run a pre-defined campaign |
+| `chat(message)` | Let the AI agent find the right schema |
+
+See [sdk/README.md](sdk/README.md) for full documentation and examples.
 
 ## Architecture
 
@@ -111,74 +158,23 @@ The agent will find the matching schema, ask for confirmation, then run the full
 │  Side Panel (React)  ←→  Service Worker              │
 │  - Chat UI                - Backend API calls        │
 │  - Verification progress  - Browser automation       │
-│                           - Login detection          │
+│  - Auto confirm           - Login detection          │
 │                           - Request interception     │
+│                           - Batch verification       │
 │                           - zkTLS proof generation   │
-└──────────────────────────────┬──────────────────────┘
-                               │ SSE / REST
-                               ▼
-┌─────────────────────────────────────────────────────┐
-│ Backend (Express + LangGraph)                        │
-│                                                      │
-│  AI Agent         → Intent parsing                   │
-│  Schema Search    → SQLite full-text search          │
-│  zkPass Adapter   → Schema fetch + task allocation   │
-└─────────────────────────────────────────────────────┘
+└───────────────┬──────────────────┬──────────────────┘
+                │ SSE / REST       │ window.postMessage
+                ▼                  ▼
+┌──────────────────────────┐  ┌────────────────────────┐
+│ Backend                   │  │ SDK / Webpage           │
+│ (Express + LangGraph)     │  │                         │
+│                           │  │  TransGateAgent          │
+│  AI Agent → Intent parse  │  │  - verify()             │
+│  Schema Search → SQLite   │  │  - verifyCampaign()     │
+│  Campaign API             │  │  - chat()               │
+│  zkPass → Task allocation │  │  - Events & Promises    │
+└──────────────────────────┘  └────────────────────────┘
 ```
-
-## External Webpage Integration
-
-Third-party webpages can trigger verification via `window.postMessage`, without opening the Side Panel.
-
-### Sending messages to the extension
-
-```js
-// Listen for responses
-window.addEventListener('message', (e) => {
-  if (e.data.source !== 'transgate-ai-agent') return;
-  console.log('Response:', e.data);
-});
-
-// Chat
-window.postMessage({
-  target: 'transgate-ai-agent',
-  type: 'TRANSGATE_CHAT',
-  message: 'Verify my Twitter followers'
-}, '*');
-
-// Direct verification by zkPass schema ID
-window.postMessage({
-  target: 'transgate-ai-agent',
-  type: 'TRANSGATE_VERIFY_SCHEMA',
-  zkpassSchemaId: '7e068f51c9bc472fac28e07a901d446d'
-}, '*');
-
-// New conversation
-window.postMessage({
-  target: 'transgate-ai-agent',
-  type: 'TRANSGATE_NEW_CONVERSATION'
-}, '*');
-
-// Stop verification
-window.postMessage({
-  target: 'transgate-ai-agent',
-  type: 'TRANSGATE_STOP_VERIFICATION'
-}, '*');
-```
-
-### Response message types
-
-| Type | Description |
-|---|---|
-| `TRANSGATE_RESPONSE` | Direct response (e.g. new conversationId) |
-| `TRANSGATE_CHAT_PROGRESS` | Chat progress (thinking, tool calls) |
-| `TRANSGATE_CHAT_RESULT` | Chat result (action, reply, schemaIds) |
-| `TRANSGATE_STATUS_UPDATE` | Verification progress step |
-| `TRANSGATE_PROOF_RESULT` | Proof generated |
-| `TRANSGATE_VERIFICATION_DONE` | Verification complete or error |
-| `TRANSGATE_ERROR` | Extension error |
-
-All responses include `source: 'transgate-ai-agent'` for identification.
 
 ## Adding Custom Schemas
 
@@ -186,7 +182,7 @@ See [backend/docs/schema.md](backend/docs/schema.md) for a complete guide on:
 
 - Creating schemas on zkPass Dev
 - Configuring login detection and page navigation
-- Adding schemas to the database
+- Adding schemas and campaigns to the database
 
 ## Project Structure
 
@@ -197,7 +193,7 @@ TransGate-AI-Agent/
 │   │   ├── config/             # Environment configs
 │   │   ├── db/                 # SQLite init + seed data
 │   │   ├── middleware/         # Auth + rate limiting
-│   │   ├── routes/             # API endpoints
+│   │   ├── routes/             # API endpoints (chat, verify, campaign)
 │   │   ├── services/           # AI agent, resolver, tools, zkPass adapter
 │   │   └── types/              # TypeScript types
 │   ├── docs/                   # Documentation
@@ -208,6 +204,10 @@ TransGate-AI-Agent/
 │   ├── assets/
 │   ├── sidepanel/
 │   └── icons/
+├── sdk/                        # JavaScript/TypeScript SDK (source)
+│   ├── src/                    # SDK source code
+│   ├── examples/               # Working examples (verify, chat, campaign)
+│   └── docs/                   # API reference
 └── LICENSE                     # Apache-2.0
 ```
 

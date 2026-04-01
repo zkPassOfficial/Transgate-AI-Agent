@@ -17,6 +17,21 @@ const testSchemas = [
     http_version: '1.1',
   },
   {
+    id: 'a7d5567181bc4ffeb87956f6e6bc74c1',
+    zkpass_schema_id: 'b5362e612a254fa484bd555b198b349e',
+    platform: 'twitter',
+    category: 'following',
+    title: 'Verify user is following zkPass on Twitter/X',
+    description: 'Proves the user is following the official zkPass account (@zkPass) on Twitter/X. Commonly used for social engagement verification, community membership checks, follow-to-earn campaigns, or confirming participation in marketing activities.',
+    condition: 'Following @zkPass',
+    keywords: 'twitter,x,following,follow,zkpass,social,community,engagement,membership',
+    aliases: 'follow zkpass,following zkpass,followed zkpass,twitter follow,x follow,follow check,am i following',
+    site_url: 'https://x.com/zkPass',
+    login_config: JSON.stringify({ checkUrl: 'https://x.com/home', loginUrl: 'https://x.com/i/flow/login', selector: "[data-testid='AppTabBar_Home_Link']" }),
+    navigation: JSON.stringify({ steps: [{ action: 'navigate', url: 'https://x.com/zkPass' }] }),
+    http_version: '1.1',
+  },
+  {
     id: 'afedac5b7eac43f78243ebba8a141db7',
     zkpass_schema_id: '6cc0b5af94fa45faab1e1a47f0df13dd',
     platform: 'binance',
@@ -67,8 +82,8 @@ const testCampaigns = [
   {
     name: 'zkPass Airdrop Demo',
     aliases: 'airdrop,demo,zkpass airdrop,token drop,claim airdrop,free tokens',
-    description: 'Verify Twitter/X follower count and Binance KYC to qualify for the zkPass airdrop. Requires completing both verifications.',
-    schemas: ['a7d5567181bc4ffeb87956f6e6bc74c0', 'afedac5b7eac43f78243ebba8a141db7'],
+    description: 'Verify Twitter/X follower count and follow zkPass to qualify for the zkPass airdrop. Requires completing both verifications.',
+    schemas: ['a7d5567181bc4ffeb87956f6e6bc74c0', 'a7d5567181bc4ffeb87956f6e6bc74c1'],
   },
 ];
 

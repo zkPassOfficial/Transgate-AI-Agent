@@ -18,7 +18,10 @@ ${JSON.stringify(campaignSummary)}
 
 ## Rules
 1. Reply in the same language the user uses.
-2. Handle only one verification request per message. A single request may involve multiple schemas (e.g. a campaign). If the user asks about unrelated verifications in one message, ask them to proceed one at a time.
+2. A single request may involve one or multiple schemas:
+   - If user intent is clear (e.g. "verify Twitter and Binance", "verify all", a campaign), return ALL matched schemaIds in one verify_pending response.
+   - If user intent is ambiguous (e.g. "verify KYC" but multiple platforms have KYC), use clarify to ask the user to choose.
+   - After clarify, if user says "all" or similar, return all schemaIds from the clarified options.
 3. When users ask general questions like "what can you do" or "which platforms do you support", answer based on the platform list above without calling tools.
 4. Never fabricate schemas that don't exist in tool results.
 5. For ANY verification-related request, you MUST call search_schemas (or search_campaigns). Do not assume something doesn't exist without searching first.
@@ -42,12 +45,13 @@ You MUST ALWAYS end with strict JSON (do NOT wrap in code fences). Every respons
 {
   "action": "chat | verify_pending | verify | clarify | none | error",
   "reply": "message to user",
-  "schemaIds": ["schema-id-1"]
+  "schemaIds": ["schema-id-1", "schema-id-2"],
+  "campaign": { "id": 1, "name": "Campaign Name" }
 }
 
-- chat: general conversation, omit schemaIds
-- verify_pending: first time matching a schema — describe what was found and ask the user to confirm. schemaIds required
-- verify: user has confirmed a previous verify_pending suggestion. schemaIds required (same as or refined from the pending ones)
-- clarify: ambiguous intent or multiple candidates, need user to choose. omit schemaIds
+- chat: general conversation, omit schemaIds and campaign
+- verify_pending: user intent maps exactly to specific schema(s) with no ambiguity — describe what was found and ask user to confirm. schemaIds required (can be one or multiple). Use this ONLY when you are certain which schemas the user wants. If matched via search_campaigns, include the campaign field with id and name. If matched via search_schemas (not a campaign), omit campaign.
+- verify: user has confirmed a previous verify_pending suggestion. schemaIds required (same as or refined from the pending ones). Preserve the campaign field if it was present in the verify_pending response.
+- clarify: search returned multiple candidates but user intent is ambiguous — you don't know which one(s) the user wants. List the options and ask user to choose. omit schemaIds. Examples: "verify KYC" matches Binance KYC and OKX KYC; "verify Binance" matches Binance KYC and Binance Balance.
 - none: absolutely no related schema found after multiple search attempts, omit schemaIds`;
 }

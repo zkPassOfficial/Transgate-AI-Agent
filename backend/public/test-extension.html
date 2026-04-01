@@ -120,10 +120,10 @@ window.addEventListener('message', (event) => {
     }
   } else if (type.includes('STATUS_UPDATE')) {
     appendLog('progress', 'status', data.status || data);
-  } else if (type.includes('PROOF_RESULT')) {
-    appendLog('response', 'proof result', data);
-  } else if (type.includes('VERIFICATION_DONE')) {
-    appendLog(data.error ? 'error' : 'response', 'done', data);
+  } else if (type.includes('BATCH_RESULT')) {
+    const results = data.results || [];
+    const passed = results.filter(r => r.success).length;
+    appendLog('response', `batch result (${passed}/${results.length} passed)`, data);
   } else {
     appendLog('progress', type, data);
   }
@@ -147,7 +147,7 @@ function sendChat() {
 function sendVerify() {
   const id = $('schemaInput').value.trim();
   if (!id) return;
-  sendMsg('TRANSGATE_VERIFY_SCHEMA', { zkpassSchemaId: id });
+  sendMsg('TRANSGATE_VERIFY_SCHEMA', { zkpassSchemaIds: [id] });
 }
 
 // Check extension availability

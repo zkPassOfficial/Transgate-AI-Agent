@@ -61,12 +61,13 @@ export async function resolve(
 
       const parsed = extractJson(finalContent);
 
-      console.log(JSON.stringify({ event: 'resolved', userId, action: parsed.action, schemaIds: parsed.schemaIds }));
+      console.log(JSON.stringify({ event: 'resolved', userId, action: parsed.action, schemaIds: parsed.schemaIds, campaign: parsed.campaign }));
 
       return {
         action: parsed.action as ResolveResult['action'],
         reply: parsed.reply as string,
         schemaIds: parsed.schemaIds as string[] | undefined,
+        campaign: parsed.campaign as ResolveResult['campaign'],
       };
     } catch (err) {
       if ((err as Error).name === 'AbortError') {

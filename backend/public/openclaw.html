@@ -53,13 +53,18 @@ window.addEventListener('message', (event) => {
     if (data.conversationId) convId = data.conversationId;
   } else if (type.includes('STATUS_UPDATE')) {
     addMessage('status', data.status || '');
-  } else if (type.includes('PROOF_RESULT')) {
-    addMessage('done', 'Proof generated:\n' + (data.result || ''));
-  } else if (type.includes('VERIFICATION_DONE')) {
-    if (data.error) {
-      addMessage('error', data.error);
+  } else if (type.includes('BATCH_RESULT')) {
+    const results = data.results || [];
+    if (results.length === 0) {
+      addMessage('error', 'Verification stopped.');
     } else {
-      addMessage('done', 'Verification complete');
+      const passed = results.filter(r => r.success).length;
+      const lines = results.map(r => {
+        const label = (r.success ? '✓' : '✗') + ' ' + (r.title || r.schemaId);
+        if (r.success && r.proof) return label + '\n' + r.proof;
+        return label;
+      }).join('\n\n');
+      addMessage('done', `Batch result (${passed}/${results.length} passed)\n\n${lines}`);
     }
   } else if (type === 'TRANSGATE_RESPONSE') {
     if (data.conversationId) convId = data.conversationId;
@@ -94,7 +99,7 @@ function handleInput() {
     const schemaId = text.slice(8).trim();
     if (schemaId) {
       addMessage('user', text);
-      sendToExtension('TRANSGATE_VERIFY_SCHEMA', { zkpassSchemaId: schemaId });
+      sendToExtension('TRANSGATE_VERIFY_SCHEMA', { zkpassSchemaIds: [schemaId] });
       return;
     }
   }

@@ -9,10 +9,16 @@
 export type Action = 'chat' | 'verify_pending' | 'verify' | 'clarify' | 'none' | 'error';
 
 /** Resolver output — intent parsed from natural language */
+export interface CampaignInfo {
+  id: number;
+  name: string;
+}
+
 export interface ResolveResult {
   action: Action;
   reply: string;
   schemaIds?: string[];
+  campaign?: CampaignInfo;
 }
 
 /** Optional page context injected by the extension service worker */
@@ -31,6 +37,7 @@ export interface ChatRequest {
 
 /** Single schema in a verify SSE result */
 export interface VerifySchema {
+  title: string;
   zkpassSchemaId: string;
   website: string;
   APIs: Record<string, unknown>[];
@@ -54,6 +61,7 @@ export interface SSEResult {
   action: Action;
   reply: string;
   schemaIds?: string[];
+  campaign?: CampaignInfo;
   schemas?: VerifySchema[];
 }
 

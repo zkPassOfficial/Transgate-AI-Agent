@@ -5,6 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import chatRouter from './routes/chat.js';
 import verifyRouter from './routes/verify.js';
+import campaignRouter from './routes/campaign.js';
 import { requireUserId, rateLimit } from './middleware/user.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -22,5 +23,6 @@ app.get('/health', (_req, res) => {
 
 app.use('/api/chat', requireUserId, rateLimit(60_000, 20), chatRouter);
 app.use('/api/verify', requireUserId, rateLimit(60_000, 20), verifyRouter);
+app.use('/api/campaign', campaignRouter);
 
 export default app;

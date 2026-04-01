@@ -53,6 +53,7 @@ router.post('/', async (req: Request, res: Response) => {
       action: resolved.action,
       reply: resolved.reply,
       schemaIds: resolved.schemaIds,
+      campaign: resolved.campaign,
     });
   } catch (err) {
     if (!aborted) {

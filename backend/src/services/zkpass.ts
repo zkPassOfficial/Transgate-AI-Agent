@@ -42,7 +42,7 @@ export async function allocateTask(schemaId: string) {
  */
 export async function buildVerifyPayload(schemaId: string): Promise<VerifySchema | null> {
   const db = getDb();
-  const row = db.prepare('SELECT zkpass_schema_id, http_version, login_config, navigation FROM schemas WHERE id = ?').get(schemaId) as Record<string, string> | undefined;
+  const row = db.prepare('SELECT title, zkpass_schema_id, http_version, login_config, navigation FROM schemas WHERE id = ?').get(schemaId) as Record<string, string> | undefined;
   if (!row?.zkpass_schema_id) return null;
   return buildPayloadFromZkpass(row.zkpass_schema_id, row);
 }
@@ -52,7 +52,7 @@ export async function buildVerifyPayload(schemaId: string): Promise<VerifySchema
  */
 export async function buildVerifyPayloadByZkpass(zkpassSchemaId: string): Promise<VerifySchema | null> {
   const db = getDb();
-  const row = db.prepare('SELECT zkpass_schema_id, http_version, login_config, navigation FROM schemas WHERE zkpass_schema_id = ?').get(zkpassSchemaId) as Record<string, string> | undefined;
+  const row = db.prepare('SELECT title, zkpass_schema_id, http_version, login_config, navigation FROM schemas WHERE zkpass_schema_id = ?').get(zkpassSchemaId) as Record<string, string> | undefined;
   if (!row) return null;
   return buildPayloadFromZkpass(zkpassSchemaId, row);
 }
@@ -64,6 +64,7 @@ async function buildPayloadFromZkpass(zkpassSchemaId: string, row: Record<string
   ]);
 
   return {
+    title: row.title || '',
     zkpassSchemaId,
     website: schema.website,
     APIs: schema.APIs,

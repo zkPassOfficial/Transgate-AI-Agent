@@ -67,7 +67,7 @@ SSE endpoint. Accepts natural language, returns schema matches via AI agent.
 ```bash
 curl -X POST http://localhost:3000/api/chat \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: test-user" \
+  -H "X-User-Address: 0xYourWalletAddress" \
   -d '{"message": "verify my twitter followers", "conversationId": "conv-1"}'
 ```
 
@@ -79,13 +79,13 @@ Fetches zkPass schema + allocates verification task. Accepts either local `schem
 # By local schema ID
 curl -X POST http://localhost:3000/api/verify \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: test-user" \
+  -H "X-User-Address: 0xYourWalletAddress" \
   -d '{"schemaId": "a7d5567181bc4ffeb87956f6e6bc74c0"}'
 
 # By zkPass schema ID
 curl -X POST http://localhost:3000/api/verify \
   -H "Content-Type: application/json" \
-  -H "X-User-Id: test-user" \
+  -H "X-User-Address: 0xYourWalletAddress" \
   -d '{"zkpassSchemaId": "7e068f51c9bc472fac28e07a901d446d"}'
 ```
 

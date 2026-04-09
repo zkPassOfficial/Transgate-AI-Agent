@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import chatRouter from './routes/chat.js';
 import verifyRouter from './routes/verify.js';
 import campaignRouter from './routes/campaign.js';
-import { requireUserId, rateLimit } from './middleware/user.js';
+import { requireUserAddress, rateLimit } from './middleware/user.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -21,8 +21,8 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.use('/api/chat', requireUserId, rateLimit(60_000, 20), chatRouter);
-app.use('/api/verify', requireUserId, rateLimit(60_000, 20), verifyRouter);
+app.use('/api/chat', requireUserAddress, rateLimit(60_000, 20), chatRouter);
+app.use('/api/verify', requireUserAddress, rateLimit(60_000, 20), verifyRouter);
 app.use('/api/campaign', campaignRouter);
 
 export default app;

@@ -79,11 +79,11 @@ export interface CampaignSummary {
   description: string;
 }
 
-/** Extend Express Request with userId */
+/** Extend Express Request with userAddress */
 declare global {
   namespace Express {
     interface Request {
-      userId?: string;
+      userAddress?: string;
     }
   }
 }

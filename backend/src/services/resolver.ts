@@ -10,13 +10,13 @@ import type { ResolveResult, PageContext } from '../types/index.js';
 export type OnProgress = (step: string, message: string) => void;
 
 export async function resolve(
-  userId: string,
+  address: string,
   conversationId: string,
   message: string,
   context?: PageContext,
   onProgress?: OnProgress,
 ): Promise<ResolveResult> {
-  const threadId = `${userId}:${conversationId}`;
+  const threadId = `${address}:${conversationId}`;
 
   return withLock(threadId, async () => {
     const controller = new AbortController();
@@ -61,7 +61,7 @@ export async function resolve(
 
       const parsed = extractJson(finalContent);
 
-      console.log(JSON.stringify({ event: 'resolved', userId, action: parsed.action, schemaIds: parsed.schemaIds, campaign: parsed.campaign }));
+      console.log(JSON.stringify({ event: 'resolved', address, action: parsed.action, schemaIds: parsed.schemaIds, campaign: parsed.campaign }));
 
       return {
         action: parsed.action as ResolveResult['action'],
@@ -73,7 +73,7 @@ export async function resolve(
       if ((err as Error).name === 'AbortError') {
         return { action: 'error', reply: 'Request timed out, please try again.' };
       }
-      console.error(JSON.stringify({ event: 'resolver_error', userId, error: (err as Error).message }));
+      console.error(JSON.stringify({ event: 'resolver_error', address, error: (err as Error).message }));
       return { action: 'error', reply: 'Service temporarily unavailable, please try again.' };
     } finally {
       clearTimeout(timeout);

@@ -16,7 +16,7 @@ function sendResult(res: Response, result: SSEResult): void {
 
 router.post('/', async (req: Request, res: Response) => {
   const { message, conversationId, context } = req.body as ChatRequest;
-  const userId = req.userId!;
+  const address = req.userAddress!;
 
   // Input validation (before SSE so we can return proper HTTP status codes)
   if (!message || typeof message !== 'string' || !message.trim()) {
@@ -45,7 +45,7 @@ router.post('/', async (req: Request, res: Response) => {
       if (!aborted) sendProgress(res, step, message);
     };
 
-    const resolved = await resolve(userId, conversationId || 'default', message, context, onProgress);
+    const resolved = await resolve(address, conversationId || 'default', message, context, onProgress);
 
     if (aborted) return;
 
@@ -57,7 +57,7 @@ router.post('/', async (req: Request, res: Response) => {
     });
   } catch (err) {
     if (!aborted) {
-      console.error(JSON.stringify({ event: 'chat_error', userId, error: (err as Error).message }));
+      console.error(JSON.stringify({ event: 'chat_error', address, error: (err as Error).message }));
       sendResult(res, { action: 'error', reply: 'Service temporarily unavailable, please try again' });
     }
   } finally {

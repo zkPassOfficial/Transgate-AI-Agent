@@ -8,6 +8,12 @@ const agent = new TransGateAgent();
 agent.on('status', (s) => log(`[status] ${s}`));
 agent.on('error', (e) => log(`[error] ${e}`));
 
+const installed = await agent.isAvailable();
+if (!installed) {
+  log('TransGate AI Agent extension is not installed.');
+  throw new Error('Extension not installed');
+}
+
 // ⚠️ Replace with your own campaign ID from the backend database
 const campaignId = 8;
 

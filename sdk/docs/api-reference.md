@@ -18,6 +18,35 @@ The SDK handles the readiness check internally — all public methods wait until
 
 ### Methods
 
+#### `isAvailable(timeout?: number): Promise<boolean>`
+
+Check whether the TransGate AI Agent Chrome extension is installed and active in the current browser.
+
+**Parameters:**
+
+| Name | Type | Default | Description |
+|---|---|---|---|
+| `timeout` | `number` | `1000` | Max wait time in milliseconds |
+
+**Returns:** `Promise<boolean>` — `true` if the extension responds, `false` if it times out.
+
+**Example:**
+
+```js
+const installed = await agent.isAvailable();
+if (!installed) {
+  console.log('Please install the TransGate AI Agent extension');
+}
+```
+
+**Behavior:**
+
+- Sends a `TRANSGATE_PING` message and waits for `TRANSGATE_PONG` from the extension's content script
+- Does not involve the Service Worker — the bridge responds directly
+- Safe to call multiple times
+
+---
+
 #### `verify(zkpassSchemaIds: string[]): Promise<BatchResult>`
 
 Verify one or more schemas by zkPass schema IDs. Skips AI agent — triggers verification directly.
@@ -363,6 +392,7 @@ window.postMessage({
 
 | Type | Payload | Description |
 |---|---|---|
+| `TRANSGATE_PING` | — | Check if extension is installed |
 | `TRANSGATE_CHAT` | `{ message, conversationId }` | Send chat message to AI agent |
 | `TRANSGATE_VERIFY_SCHEMA` | `{ zkpassSchemaIds }` | Direct schema verification |
 | `TRANSGATE_VERIFY_CAMPAIGN` | `{ campaignId }` | Campaign verification |
@@ -382,6 +412,7 @@ window.addEventListener('message', (event) => {
 
 | Type | Payload | Description |
 |---|---|---|
+| `TRANSGATE_PONG` | — | Extension is installed |
 | `TRANSGATE_RESPONSE` | `{ conversationId?, ok? }` | Acknowledgement |
 | `TRANSGATE_CHAT_PROGRESS` | `{ step, message }` | AI agent thinking |
 | `TRANSGATE_CHAT_RESULT` | `{ action, reply, schemaIds?, campaign? }` | AI agent reply |

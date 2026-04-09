@@ -52,6 +52,15 @@ const agent = new TransGateAgent();
 
 The SDK automatically waits for the extension's content script to be ready before sending any messages. No manual initialization needed.
 
+### Check Extension Availability
+
+```js
+const installed = await agent.isAvailable();
+if (!installed) {
+  console.log('Please install the TransGate AI Agent extension');
+}
+```
+
 ## Three Modes
 
 ### 1. Direct Verify

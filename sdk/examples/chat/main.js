@@ -22,6 +22,12 @@ agent.on('chatProgress', (d) => {
 agent.on('status', (s) => log(`[status] ${s}`));
 agent.on('error', (e) => log(`[error] ${e}`));
 
+const installed = await agent.isAvailable();
+if (!installed) {
+  log('TransGate AI Agent extension is not installed.');
+  throw new Error('Extension not installed');
+}
+
 // ⚠️ Replace with your own verification request
 const message = 'verify my twitter followers';
 

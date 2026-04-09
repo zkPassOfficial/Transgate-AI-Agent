@@ -25,7 +25,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/bridge.ts-DdxJzvgZ.js"
+        "assets/bridge.ts-BExKwCvy.js"
       ],
       "matches": [
         "*://*/*"
@@ -54,7 +54,7 @@
       "resources": [
         "sidepanel/index.html",
         "assets/*",
-        "assets/bridge.ts-DdxJzvgZ.js"
+        "assets/bridge.ts-BExKwCvy.js"
       ],
       "use_dynamic_url": false
     }

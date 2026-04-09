@@ -102,6 +102,29 @@ export class TransGateAgent extends EventEmitter {
     }
   }
 
+  // --- Public: detection ---
+
+  async isAvailable(timeout = 1000): Promise<boolean> {
+    await this.readyPromise;
+    return new Promise(resolve => {
+      const handler = (event: MessageEvent) => {
+        if (event.source !== window) return;
+        const data = event.data;
+        if (data?.source === TARGET && data?.type?.includes('PONG')) {
+          clearTimeout(timer);
+          window.removeEventListener('message', handler);
+          resolve(true);
+        }
+      };
+      window.addEventListener('message', handler);
+      const timer = setTimeout(() => {
+        window.removeEventListener('message', handler);
+        resolve(false);
+      }, timeout);
+      this.send('TRANSGATE_PING');
+    });
+  }
+
   // --- Public: 3 modes ---
 
   async verify(zkpassSchemaIds: string[]): Promise<BatchResult> {

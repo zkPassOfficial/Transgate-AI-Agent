@@ -2,11 +2,11 @@
 
 # TransGate AI Agent
 
-**Prove anything about yourself across the internet — privately and trustlessly.**
+**Use natural language to find and run configured zkPass verification workflows.**
 
-AI Agent meets zero-knowledge proofs. Autonomously verify anything across the internet — powered by [zkPass](https://zkpass.org)
+AI Agent meets zero-knowledge proofs, powered by [zkPass](https://zkpass.org). Supported verification depends on configured schemas, compatible target websites, backend access, and the installed extension.
 
-Just tell the agent what you want to prove. It handles everything — schema matching, browser navigation, login detection, zkTLS data capture, and proof generation.
+Just tell the agent what you want to prove. The intended flow connects schema matching, browser navigation, login detection, zkTLS data capture, and proof generation. Users still need to complete required logins and confirmations. This source review does not establish end-to-end privacy, trustlessness, or cryptographic correctness.
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
@@ -27,8 +27,8 @@ TransGate AI Agent introduces an autonomous execution layer — combining intell
 **What's new:**
 
 - **Autonomous Intelligence Layer** — An AI agent capable of multi-step reasoning, contextual understanding, and adaptive execution. Interaction shifts from explicit instruction to intent-driven resolution.
-- **Unified Execution Engine** — A fault-tolerant, composable pipeline that coordinates complex, multi-stage verification processes with deterministic and cryptographically verifiable outcomes.
-- **Composable Orchestration Framework** — Define once, execute anywhere. Complex verification workflows become reusable primitives, seamlessly integrable across environments.
+- **Unified Execution Engine** — A pipeline that coordinates multi-stage verification. Recovery, cancellation, and proof correctness require end-to-end validation; the SDK does not itself verify proof contents.
+- **Composable Orchestration Framework** — Configure schemas and campaigns for reuse through the Chrome extension and browser SDK. Compatibility depends on the target site and deployment.
 - **Programmable Interface Layer** — A developer-centric SDK that exposes trust and verification as native, composable building blocks within any application.
 - **Dual Interaction Model** — Designed for both human interaction and system-level integration, enabling seamless coordination between user-driven and programmatic execution.
 
@@ -59,14 +59,9 @@ cd backend
 npm install
 ```
 
-Create your production config (see [backend/README.md](backend/README.md) for details):
+Review the existing `src/config/config.dev.ts` and `src/config/config.prod.ts` privately; both are tracked in this checkout. `NODE_ENV=production` selects the latter; all other values select development. Do not overwrite one with the other or commit real API keys. See [backend configuration](backend/README.md#configuration) for a placeholder-only example and environment-injection caveat.
 
-```bash
-cp src/config/config.dev.ts src/config/config.prod.ts
-# Edit config.prod.ts with your OpenAI API key and zkPass App ID
-```
-
-Initialize the database with test schemas:
+For an **empty, disposable demo database only**, you may load the sample schemas. **`npm run seed` deletes all existing schemas, campaigns, and campaign-schema links in the selected database before inserting samples.** Confirm the selected config/database and back up needed data first. Normal server startup creates missing tables without clearing existing data, so seeding is not mandatory for startup.
 
 ```bash
 npm run seed
@@ -125,19 +120,26 @@ The agent will find the matching schema (or campaign), ask for confirmation, the
 Third-party webpages can integrate via the [TransGate Agent SDK](sdk/):
 
 ```js
-import { TransGateAgent } from '@zkpass/transgate-agent-sdk';
+// After building sdk/, use the browser-served ESM output.
+import { TransGateAgent } from './sdk/dist/index.js';
 
 const agent = new TransGateAgent();
+if (!(await agent.isAvailable())) {
+  agent.destroy();
+  throw new Error('Extension bridge did not respond');
+}
 
 // Direct verification
 const result = await agent.verify(['zkpass-schema-id-1', 'zkpass-schema-id-2']);
 
 // Campaign verification
-const result = await agent.verifyCampaign(1);
+const campaignResult = await agent.verifyCampaign(1); // replace with your actual campaign ID
 
 // AI-powered chat
 const res = await agent.chat('verify my twitter followers');
 ```
+
+The constructor only waits for page load. `isAvailable()` probes the page bridge; it does not verify backend health. Verification/chat methods have no response deadline, and one instance must not run overlapping result-producing operations. See [SDK lifecycle limits](sdk/README.md#lifecycle-and-concurrency).
 
 Three modes:
 
@@ -192,7 +194,7 @@ TransGate-AI-Agent/
 │   ├── src/
 │   │   ├── config/             # Environment configs
 │   │   ├── db/                 # SQLite init + seed data
-│   │   ├── middleware/         # Auth + rate limiting
+│   │   ├── middleware/         # Address-header presence + rate limiting
 │   │   ├── routes/             # API endpoints (chat, verify, campaign)
 │   │   ├── services/           # AI agent, resolver, tools, zkPass adapter
 │   │   └── types/              # TypeScript types
@@ -206,7 +208,7 @@ TransGate-AI-Agent/
 │   └── icons/
 ├── sdk/                        # JavaScript/TypeScript SDK (source)
 │   ├── src/                    # SDK source code
-│   ├── examples/               # Working examples (verify, chat, campaign)
+│   ├── examples/               # Example pages (verify, chat, campaign)
 │   └── docs/                   # API reference
 └── LICENSE                     # Apache-2.0
 ```
@@ -217,6 +219,16 @@ TransGate-AI-Agent/
 - Chrome browser
 - OpenAI API key (or compatible LLM API)
 - zkPass Dev account ([sign up](https://dev.zkpass.org))
+
+## Extension artifact and validation status
+
+`extension/manifest.json` declares version **0.1.0**. The folder contains a prebuilt service worker, page bridge, side-panel assets, and a WASM asset. This checkout does not include an extension source project/build configuration or source maps that establish a reproducible source-to-bundle mapping. Backend and SDK source are available separately; their builds do not rebuild the extension.
+
+The manifest requests broad host access (`<all_urls>`) and injects the bridge on matching HTTP(S) pages. Review the bundle and permissions in an isolated browser profile before enabling it on sensitive sessions. The backend receives chat messages and optional page context and invokes the configured LLM; verification preparation calls zkPass services. Do not describe this as an offline-only or independently audited privacy flow.
+
+A manual integration check should cover page load versus bridge detection, missing extension/backend, each of the three modes, user login/confirmation, failed and stopped verification, missing replies, and repeated calls without overlapping pending promises. Validate schema selectors/navigation against the actual target site. Test the selected prebuilt extension version with the selected backend/SDK revisions and record them together.
+
+No dependency install, build, backend startup, seed, API request, extension installation, proof generation, or runtime test was executed for this documentation update. No test script or tracked GitHub Actions workflow is present; external CI and published-package availability were not verified.
 
 ## License
 

@@ -1,6 +1,6 @@
 # TransGate Agent SDK
 
-JavaScript/TypeScript SDK for integrating with the [TransGate AI Agent](https://github.com/zkPassOfficial/Transgate-AI-Agent) Chrome extension. Enables zero-knowledge proof verification from any webpage.
+JavaScript/TypeScript SDK for integrating with the [TransGate AI Agent](https://github.com/zkPassOfficial/Transgate-AI-Agent) Chrome extension. Provides a page-message interface to an installed compatible extension on supported browser pages; the SDK itself does not generate or validate proofs.
 
 ## Installation
 
@@ -20,7 +20,7 @@ import { TransGateAgent } from './dist/index.js';
 
 ### npm
 
-> **Not yet published.** npm installation will be available in a future release.
+The package metadata uses `@zkpass/transgate-agent-sdk`, but publication status was not verified. The instructions below use the checked-in source build and do not assume an npm release exists.
 
 ### Script tag
 
@@ -36,28 +36,33 @@ After building from source, reference the ESM bundle:
 
 1. **TransGate AI Agent Chrome extension** must be installed in the user's browser. The extension handles all browser automation, zkTLS, and proof generation. Without it, SDK calls will not receive responses.
 
-2. **Backend server** must be running for chat and campaign modes. See [backend setup](https://github.com/zkPassOfficial/Transgate-AI-Agent/tree/main/backend) for instructions.
+2. **Backend server** must be running for chat, campaign lookup, and verification payload/task preparation. Direct verification skips AI matching but still needs backend/zkPass preparation. See [backend setup](https://github.com/zkPassOfficial/Transgate-AI-Agent/tree/main/backend) for instructions.
 
-> **Note:** If the extension is not installed, SDK methods (`verify()`, `verifyCampaign()`, `chat()`) will not resolve — the internal ready check waits for the extension's content script, which never loads without the extension.
+> **Note:** The constructor waits for `document.readyState === 'complete'` or `window.load`, not for the extension. Call `isAvailable()` before starting work. After page load, a missing bridge can leave verification/chat promises pending because those methods have no response timeout.
 
 > **Browser support:** Chrome only. The SDK communicates with a Chrome extension via `window.postMessage`.
 
 ## Quick Start
 
 ```js
-import { TransGateAgent } from '@zkpass/transgate-agent-sdk';
+import { TransGateAgent } from './dist/index.js';
 
 const agent = new TransGateAgent();
+if (!(await agent.isAvailable())) {
+  agent.destroy();
+  throw new Error('Extension bridge did not respond');
+}
 ```
 
-The SDK automatically waits for the extension's content script to be ready before sending any messages. No manual initialization needed.
+The example explicitly probes the bridge after page load. The probe is a message response check, not proof of extension identity, backend health, or verification readiness.
 
 ### Check Extension Availability
 
 ```js
 const installed = await agent.isAvailable();
 if (!installed) {
-  console.log('Please install the TransGate AI Agent extension');
+  agent.destroy();
+  throw new Error('Please install or enable the TransGate AI Agent extension');
 }
 ```
 
@@ -69,6 +74,10 @@ Verify one or more schemas by zkPass schema IDs. No AI agent involved — goes s
 
 ```js
 const agent = new TransGateAgent();
+if (!(await agent.isAvailable())) {
+  agent.destroy();
+  throw new Error('Extension bridge did not respond');
+}
 
 // Listen for progress (optional)
 agent.on('status', (status) => {
@@ -94,6 +103,10 @@ Verify all schemas in a pre-defined campaign by campaign ID. Requires the backen
 
 ```js
 const agent = new TransGateAgent();
+if (!(await agent.isAvailable())) {
+  agent.destroy();
+  throw new Error('Extension bridge did not respond');
+}
 
 agent.on('status', (status) => {
   console.log('Progress:', status);
@@ -111,6 +124,10 @@ Let the AI agent find the right schema through natural language conversation. Re
 
 ```js
 const agent = new TransGateAgent();
+if (!(await agent.isAvailable())) {
+  agent.destroy();
+  throw new Error('Extension bridge did not respond');
+}
 
 agent.on('chatProgress', (data) => {
   console.log('Thinking:', data.message);
@@ -122,8 +139,9 @@ console.log(`Agent: ${res.reply}`);
 
 // If the agent found a match, confirm
 if (res.action === 'verify_pending') {
-  await agent.chat('yes');
-  const result = await agent.waitForResult();
+  // Register before confirmation so a fast batch result is not missed.
+  const completion = agent.waitForResult();
+  const [, result] = await Promise.all([agent.chat('yes'), completion]);
   result.results.forEach((r) => {
     console.log(`${r.success ? '✓' : '✗'} ${r.title}`);
   });
@@ -146,7 +164,7 @@ const res2 = await agent.chat('Binance');
 Subscribe to events for real-time updates. `on()` returns an unsubscribe function:
 
 ```js
-const off = agent.on('status', (status) => { ... });
+const off = agent.on('status', (status) => { console.log(status); });
 off(); // unsubscribe
 ```
 
@@ -161,10 +179,10 @@ off(); // unsubscribe
 ## Control
 
 ```js
-// Stop current verification
+// Request a stop; this does not itself settle pending promises
 agent.stop();
 
-// Clean up when done (removes window listener)
+// Remove the main window listener and reject registered chat/result waiters
 agent.destroy();
 ```
 
@@ -201,7 +219,7 @@ Output in `dist/`:
 
 ## Examples
 
-See [examples/](examples/) for complete working examples:
+See [examples/](examples/) for illustrative integration pages (not runtime-verified by this review):
 
 - [examples/verify/](examples/verify/) — Direct verification
 - [examples/chat/](examples/chat/) — AI-powered chat flow
@@ -215,6 +233,17 @@ npx serve . -l 5000
 ```
 
 Then open `http://localhost:5000/examples/verify/` in a browser with the extension installed.
+
+## Lifecycle and concurrency
+
+- `isAvailable(timeout = 1000)` starts its response timer **after page load**. It sends PING and accepts a same-window PONG-marked response; it does not check backend or provider availability.
+- `verify()`, `verifyCampaign()`, `chat()`, conversation initialization, and `waitForResult()` do not set response deadlines. An application needs its own timeout/error UI; a `Promise.race` timeout alone does not cancel extension work.
+- One instance stores only one result resolver and one chat resolver. Overlapping verification/campaign/result waits can overwrite each other. Serialize operations and attach `waitForResult()` before a confirmation that may start a batch; there is no stored last-result replay.
+- `stop()` only posts `TRANSGATE_STOP_VERIFICATION`. Promise completion depends on a later bridge response; stop acknowledgement/result delivery is not guaranteed by the SDK.
+- `destroy()` removes the main message listener and rejects currently registered chat/result waiters. It does not send stop, clear event subscriptions, cancel backend work, or settle a chat still awaiting its conversation-initialization acknowledgement. Do not reuse a destroyed instance.
+- Messages are not correlated with per-request IDs. The SDK checks `event.source === window` and a source marker, not an authenticated extension identity; same-page scripts can post matching messages. Treat the page context as trusted and verify proof outputs through the intended application verification process.
+
+No dependency install, build, extension/provider call, or automated test was run for this documentation revision. There is no `test` script or tracked GitHub Actions workflow in this checkout.
 
 ## API Reference
 

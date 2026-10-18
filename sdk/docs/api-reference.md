@@ -10,13 +10,15 @@ Main class for interacting with the TransGate AI Agent Chrome extension.
 const agent = new TransGateAgent();
 ```
 
-Creates a new agent instance. Sets up a `window` message event listener and waits for the extension's content script to be ready.
+Creates an agent instance and installs a `window` message listener. Its readiness promise waits only for the document to be complete or for `window.load`.
 
-The SDK handles the readiness check internally — all public methods wait until the extension bridge is available before sending messages. If the extension is not installed, methods will not resolve (no timeout).
+`isAvailable()`, `verify()`, `verifyCampaign()`, and `chat()` await page load. Only `isAvailable()` performs a bridge probe. `stop()` sends immediately, and `waitForResult()` simply registers a result waiter. Methods waiting for chat, conversation, or batch replies have no built-in response timeout. Use the [lifecycle and concurrency guidance](../README.md#lifecycle-and-concurrency); do not overlap pending operations on one instance.
 
 ---
 
 ### Methods
+
+Operation examples below assume a successful `isAvailable()` check and one active flow per instance. Example schema/campaign IDs must be replaced with entries available to your deployment.
 
 #### `isAvailable(timeout?: number): Promise<boolean>`
 
@@ -26,7 +28,7 @@ Check whether the TransGate AI Agent Chrome extension is installed and active in
 
 | Name | Type | Default | Description |
 |---|---|---|---|
-| `timeout` | `number` | `1000` | Max wait time in milliseconds |
+| `timeout` | `number` | `1000` | Response wait in milliseconds after page load; not a total deadline including load |
 
 **Returns:** `Promise<boolean>` — `true` if the extension responds, `false` if it times out.
 
@@ -35,7 +37,8 @@ Check whether the TransGate AI Agent Chrome extension is installed and active in
 ```js
 const installed = await agent.isAvailable();
 if (!installed) {
-  console.log('Please install the TransGate AI Agent extension');
+  agent.destroy();
+  throw new Error('Extension bridge did not respond');
 }
 ```
 
@@ -43,7 +46,7 @@ if (!installed) {
 
 - Sends a `TRANSGATE_PING` message and waits for `TRANSGATE_PONG` from the extension's content script
 - Does not involve the Service Worker — the bridge responds directly
-- Safe to call multiple times
+- Safe to call multiple times; a reply is not a backend-health or authenticated extension-identity check
 
 ---
 
@@ -57,7 +60,7 @@ Verify one or more schemas by zkPass schema IDs. Skips AI agent — triggers ver
 |---|---|---|
 | `zkpassSchemaIds` | `string[]` | Array of zkPass schema IDs to verify |
 
-**Returns:** `Promise<BatchResult>` — Resolves when all schemas are verified (or stopped).
+**Returns:** `Promise<BatchResult>` — Resolves on a later `BATCH_RESULT` message. It does not independently verify completion or guarantee a result after stop.
 
 **Example:**
 
@@ -67,10 +70,10 @@ const result = await agent.verify(['925af1cca5bc4537b372cdfdc00b2a3b']);
 
 **Behavior:**
 
-- Schemas are verified sequentially, one at a time
-- If one schema fails, the next still runs (no abort on failure)
-- Emits `status` events during verification
-- Emits `result` event and resolves the promise when all complete
+- Posts `TRANSGATE_VERIFY_SCHEMA`; execution order and continuation after failure belong to the installed extension, not the SDK
+- Forwards `status` messages and resolves/emits `result` on a `BATCH_RESULT` message
+- Stores a single result waiter, with no timeout or per-request correlation
+- Direct mode skips AI matching; it still depends on backend/zkPass verification preparation
 
 ---
 
@@ -86,7 +89,7 @@ Verify all schemas associated with a campaign. The extension fetches campaign da
 |---|---|---|
 | `campaignId` | `number` | Campaign ID from the backend database |
 
-**Returns:** `Promise<BatchResult>` — Resolves when all schemas in the campaign are verified.
+**Returns:** `Promise<BatchResult>` — Resolves when the bridge sends a `BATCH_RESULT` message for the active flow.
 
 **Example:**
 
@@ -139,7 +142,7 @@ console.log(res.reply);  // 'I found a match. Proceed?'
 |---|---|---|
 | `chat` | General conversation, no verification | Continue chatting or done |
 | `verify_pending` | Schema matched, waiting for user confirmation | Call `agent.chat('yes')` to confirm |
-| `verify` | User confirmed, verification starting | Call `agent.waitForResult()` for the result |
+| `verify` | Verification is being started | Use a result waiter attached before the triggering confirmation; late attachment can miss a fast result |
 | `clarify` | Ambiguous intent, agent needs more details | Send more details via `agent.chat(...)` |
 | `none` | No matching schema found | Try different wording |
 | `error` | Error occurred | Check `res.reply` for details |
@@ -148,25 +151,25 @@ console.log(res.reply);  // 'I found a match. Proceed?'
 
 #### `waitForResult(): Promise<BatchResult>`
 
-Wait for the next verification result. Use this after `chat()` triggers a verification (action is `verify`).
+Register a waiter for the next `BATCH_RESULT`. Attach it before the confirmation that can trigger verification; previously received results are not replayed. Do not call it alongside an existing `verify()` or `verifyCampaign()` waiter.
 
 **Returns:** `Promise<BatchResult>` — Resolves when verification completes.
 
 **Example:**
 
 ```js
-const res = await agent.chat('yes'); // confirms verify_pending
-// res.action === 'verify' — verification starts in background
-const result = await agent.waitForResult(); // wait for it to finish
+// After receiving verify_pending and the user's confirmation:
+const completion = agent.waitForResult();
+const [res, result] = await Promise.all([agent.chat('yes'), completion]);
 ```
 
-**Note:** If no verification is running, the promise will wait until the next `BATCH_RESULT` arrives.
+**Note:** No timeout is set. If confirmation does not start a batch, no result may arrive; the caller needs timeout/error handling and must not start another result wait on the same instance.
 
 ---
 
 #### `stop(): void`
 
-Stop the current verification. The `BATCH_RESULT` will be emitted with results collected so far. If no schema has completed yet, `results` will be an empty array.
+Post `TRANSGATE_STOP_VERIFICATION` immediately. The SDK does not await acknowledgement, cancel a backend request, or directly resolve/reject pending work. Any partial result or completion depends on the installed extension; the SDK does not guarantee a `BATCH_RESULT` after stop.
 
 **Example:**
 
@@ -178,7 +181,7 @@ agent.stop();
 
 #### `destroy(): void`
 
-Clean up the agent instance. Removes the `window` message event listener and rejects any pending promises with an `"Agent destroyed"` error.
+Remove the main `window` message listener and reject currently registered chat/result waiters with `"Agent destroyed"`. This does not settle a conversation-initialization wait, send a stop message, or cancel backend/extension work. EventEmitter subscriptions and temporary availability listeners are not explicitly cleared by this method.
 
 Call this when the agent is no longer needed to prevent memory leaks.
 
@@ -221,7 +224,7 @@ Unsubscribe a previously registered event handler.
 
 **Example:**
 
-```js
+```typescript
 const handler = (status: string) => console.log(status);
 agent.on('status', handler);
 agent.off('status', handler);
@@ -237,7 +240,7 @@ Fired during verification with progress updates.
 
 **Payload type:** `string`
 
-```js
+```typescript
 agent.on('status', (status: string) => {
   // "Verifying schema signature"
   // "Checking login status"
@@ -255,7 +258,7 @@ Fired when all verifications complete (or are stopped).
 
 **Payload type:** `BatchResult`
 
-```js
+```typescript
 agent.on('result', (data: BatchResult) => {
   // data.results — array of VerificationResult
   // data.campaign — CampaignInfo | undefined
@@ -266,14 +269,14 @@ agent.on('result', (data: BatchResult) => {
 
 #### `chatProgress`
 
-Fired during AI agent thinking. Tokens arrive one by one via `step: 'token'`. Other steps indicate tool usage or analysis.
+Fired during AI progress text. Tokens arrive one by one via `step: 'token'`. Other steps indicate tool usage or analysis.
 
 **Payload type:** `{ step: string, message: string }`
 
 ```js
 agent.on('chatProgress', (data) => {
   if (data.step === 'token') {
-    // Streaming thinking token — append to display
+    // Streamed progress text — append to display
   } else {
     // 'thinking', 'tool', 'analyzing' — status message
   }
@@ -288,7 +291,7 @@ Fired when the AI agent replies. Contains the same data as the `chat()` promise 
 
 **Payload type:** `ChatResponse`
 
-```js
+```typescript
 agent.on('chatResult', (data: ChatResponse) => {
   console.log(data.action, data.reply);
 });
@@ -298,11 +301,11 @@ agent.on('chatResult', (data: ChatResponse) => {
 
 #### `error`
 
-Fired when an error occurs. Also rejects any pending promises.
+Fired on `TRANSGATE_ERROR`. Rejects currently registered chat/result waiters, but not the separate conversation-initialization promise.
 
 **Payload type:** `string`
 
-```js
+```typescript
 agent.on('error', (error: string) => {
   console.error(error);
 });
@@ -341,7 +344,7 @@ interface ChatResponse {
   reply: string;            // Agent's reply text (shown to user)
   schemaIds?: string[];     // Matched schema IDs (for verify_pending / verify)
   campaign?: CampaignInfo;  // Campaign info (if matched via campaign)
-  thinking?: string;        // Agent's internal reasoning (if available)
+  thinking?: string;        // Optional extension-supplied text (not a guaranteed reasoning trace)
 }
 ```
 
@@ -401,10 +404,11 @@ window.postMessage({
 
 #### Receiving messages (Extension → Webpage)
 
-Listen for messages with `source: 'transgate-ai-agent'`:
+Listen for same-window messages with `source: 'transgate-ai-agent'`. This marker is not authentication; any script on the same page can construct it:
 
 ```js
 window.addEventListener('message', (event) => {
+  if (event.source !== window) return;
   if (event.data?.source !== 'transgate-ai-agent') return;
   console.log(event.data.type, event.data);
 });
@@ -414,8 +418,12 @@ window.addEventListener('message', (event) => {
 |---|---|---|
 | `TRANSGATE_PONG` | — | Extension is installed |
 | `TRANSGATE_RESPONSE` | `{ conversationId?, ok? }` | Acknowledgement |
-| `TRANSGATE_CHAT_PROGRESS` | `{ step, message }` | AI agent thinking |
+| `TRANSGATE_CHAT_PROGRESS` | `{ step, message }` | AI progress text |
 | `TRANSGATE_CHAT_RESULT` | `{ action, reply, schemaIds?, campaign? }` | AI agent reply |
 | `TRANSGATE_STATUS_UPDATE` | `{ status }` | Verification progress |
 | `TRANSGATE_BATCH_RESULT` | `{ results, campaign? }` | Verification complete |
 | `TRANSGATE_ERROR` | `{ error }` | Error |
+
+## Verification status
+
+This reference was reconciled with `sdk/src/agent.ts`, `emitter.ts`, and `types.ts` using static inspection. No SDK build, browser integration, proof generation, or runtime test was performed. The example IDs and responses are illustrative; use entries that exist in your selected database and zkPass app.

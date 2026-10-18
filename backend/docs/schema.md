@@ -7,7 +7,7 @@ This guide explains how to create your own verification schemas and add them to 
 The system has two layers of schema:
 
 1. **zkPass Schema** — Created on [zkPass Dev](https://dev.zkpass.org). Defines the API interception rules, assertion conditions, and cryptographic signature. This is the core verification logic.
-2. **Local Schema** — Stored in your SQLite database (`seed.ts`). Supplements the zkPass schema with metadata the AI agent needs: search keywords, login detection, page navigation, etc.
+2. **Local Schema** — Stored in SQLite; `seed.ts` contains the replace-all demo seed dataset, not the database itself. Supplements the zkPass schema with metadata the AI agent needs: search keywords, login detection, page navigation, etc.
 
 When a user says "verify my Twitter followers", the AI agent searches the **local schema** database. Once matched, the extension fetches the **zkPass schema** from the zkPass Dev server and runs the verification.
 
@@ -25,7 +25,7 @@ Follow the [zkPass Quick Start Guide](https://docs.zkpass.org/developer-guides/j
 
 Each entry in the `testSchemas` array in `backend/src/db/seed.ts` has the following fields:
 
-### Required Fields
+### Fields required for a usable verification entry
 
 | Field | Type | Description | Example |
 |---|---|---|---|
@@ -109,7 +109,7 @@ Steps are executed in order:
 
 ## Complete Example
 
-Here's a real example — verifying Twitter follower count:
+The checked-in demo uses the following Twitter/X follower example. IDs, selectors, navigation, and current platform behavior have not been verified against the live site; replace and test them for your own app:
 
 ```typescript
 {
@@ -185,9 +185,9 @@ Copy the `schema_id` from the schema detail page.
 2. Record each step (URL visits, button clicks)
 3. For clicks, get the CSS selector from DevTools
 
-### 4. Add to seed.ts
+### 4. Prepare the complete demo dataset
 
-Add your schema object to the `testSchemas` array in `backend/src/db/seed.ts`.
+For disposable demo databases, add your schema object to the `testSchemas` array in `backend/src/db/seed.ts`. This is a replace-all workflow. For a database with records to preserve, use a separately reviewed incremental data-change procedure; this repository does not supply one.
 
 ### 5. Update your app_id
 
@@ -200,14 +200,16 @@ zkpass: {
 },
 ```
 
-### 6. Run seed
+### 6. Run seed only after reviewing replacement
+
+**Warning:** This deletes all existing schemas, campaigns, and campaign-schema links in the database selected by the active config. Confirm `NODE_ENV`, the configured path, and the working directory, and preserve any data you need before proceeding. Normal server startup creates missing tables without running this reset.
 
 ```bash
 cd backend
 npm run seed
 ```
 
-> **Warning:** `npm run seed` clears all existing schemas and campaigns, then re-inserts everything from `seed.ts`. Make sure all your schemas are in the file before running.
+> **Warning:** `npm run seed` clears all existing schemas and campaigns, then re-inserts everything from `seed.ts`. Make sure the complete intended dataset is in the file before running. Campaign IDs can change because the seed does not reset the autoincrement sequence. Restart the backend afterward to reload its in-memory summary cache.
 
 ## Adding Campaigns
 
@@ -237,4 +239,8 @@ Add to the `testCampaigns` array in `seed.ts`:
 - **description**: Write it as if explaining to someone unfamiliar with the platform. Include the "why" — common reasons someone would want this verification.
 - **login_config selector**: Pick an element that is reliably present when logged in and absent when logged out. Avoid elements that load lazily or change between page loads.
 - **navigation**: Keep it minimal. Only include steps needed to trigger the specific API call. Unnecessary steps slow down verification and increase failure risk.
-- **http_version**: Almost all websites use `1.1`. Only set to `2` if you specifically know the target API uses HTTP/2.
+- **http_version**: The local schema default and payload fallback are `1.1`. Select the value based on the actual target API and extension compatibility; the default is not evidence of a website's protocol.
+
+## Validation boundary
+
+The schema shapes and replace-all seed behavior were checked against local source. External zkPass documentation, demo schema availability, login selectors, target-site behavior, and the prebuilt extension were not live-tested. Backend metadata and examples do not independently prove that a verification flow or cryptographic result is correct.
